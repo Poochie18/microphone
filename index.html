@@ -331,7 +331,7 @@
         </div>
 
         <div class="footer-info">
-            AirMic v1.3 • WebRTC 2026<br>
+            AirMic v1.4 • WebRTC 2026<br>
             Для работы на iOS браузер требует клика для активации звука.
         </div>
     </div>
@@ -342,9 +342,33 @@
         /**
          * КОНФИГУРАЦИЯ
          */
-        // ВАЖНО: Если вы запускаете сервер локально, используйте IP вашего компьютера для подключения с телефона
-        // Например: 'ws://192.168.1.5:3000'
-        const SIGNALING_URL = 'ws://' + window.location.hostname + ':3000';
+        // Определяем протокол WebSocket в зависимости от протокола страницы
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        
+        // Для работы приложения нужен WebSocket сервер
+        let SIGNALING_URL;
+        
+        if (window.location.hostname === 'poochie18.github.io' || window.location.hostname === 'localhost') {
+            // Попробуем подключиться к локальному серверу через ngrok или локально
+            const serverAddress = prompt(
+                'Введите адрес WebSocket сервера:\n\n' +
+                'Для локального сервера: ws://192.168.X.X:3000\n' +
+                '(замените X.X на IP вашего компьютера)\n\n' +
+                'Или оставьте пустым для localhost:3000',
+                'ws://localhost:3000'
+            );
+            
+            if (serverAddress) {
+                SIGNALING_URL = serverAddress;
+            } else {
+                SIGNALING_URL = 'ws://localhost:3000';
+            }
+        } else {
+            // Автоматическое определение
+            SIGNALING_URL = wsProtocol + window.location.hostname + ':3000';
+        }
+        
+        console.log('Используется WebSocket сервер:', SIGNALING_URL);
         
         const ICE_SERVERS = {
             iceServers: [
