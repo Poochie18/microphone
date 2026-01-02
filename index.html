@@ -331,7 +331,7 @@
         </div>
 
         <div class="footer-info">
-            AirMic v1.2 • WebRTC 2026<br>
+            AirMic v1.3 • WebRTC 2026<br>
             Для работы на iOS браузер требует клика для активации звука.
         </div>
     </div>
@@ -373,14 +373,26 @@
                 roomId = generateKey();
                 document.getElementById('screen-room').style.display = 'flex';
                 document.getElementById('room-title').innerText = 'Ваш ключ для подключения';
-                document.getElementById('room-subtitle').innerText = 'Введите этот код на устройстве с микрофоном';
+                document.getElementById('room-subtitle').innerText = 'Код будет показан 3 секунды. Введите его на устройстве с микрофоном';
                 document.getElementById('room-id').value = roomId;
                 document.getElementById('room-id').readOnly = true;
                 document.getElementById('room-id').style.fontSize = '2rem';
                 document.getElementById('room-id').style.letterSpacing = '8px';
                 document.getElementById('room-id').style.fontFamily = 'Courier New, monospace';
-                document.getElementById('join-btn').innerText = 'Ожидать подключения';
-                document.getElementById('join-btn').style.display = 'block';
+                document.getElementById('join-btn').style.display = 'none';
+                
+                // Автоматически переходим через 3 секунды
+                setTimeout(() => {
+                    document.getElementById('screen-room').style.display = 'none';
+                    document.getElementById('screen-control').style.display = 'flex';
+                    document.getElementById('speaker-ui').classList.remove('hidden');
+                    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                        document.getElementById('ios-play-btn').style.display = 'block';
+                    }
+                    updateStatus('Ожидание микрофона...', 'connecting');
+                    initSignaling();
+                    requestWakeLock();
+                }, 3000);
             } else {
                 // Микрофон вводит ключ вручную
                 document.getElementById('screen-room').style.display = 'flex';
@@ -457,16 +469,22 @@
                     if (totalDevices === 2) {
                         const deviceType = role === 'mic' ? 'Динамик' : 'Микрофон';
                         showNotification(`✓ ${deviceType} подключен к комнате ${roomId}`, 'success');
-                        updateStatus('Устройства соединены', 'success');
+                        updateStatus('Соединение устройств...', 'connecting');
+                        
+                        // Оба устройства создают peer connection
+                        if (!pc) {
+                            await createPeerConnection();
+                        }
+                        
+                        // Микрофон инициирует соединение (отправляет offer)
+                        if (role === 'mic') {
+                            console.log('Микрофон создает offer...');
+                            const offer = await pc.createOffer();
+                            await pc.setLocalDescription(offer);
+                            ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: offer }));
+                        }
                     } else if (totalDevices === 1) {
                         updateStatus(`Ожидание ${role === 'mic' ? 'динамика' : 'микрофона'}...`, 'connecting');
-                    }
-                    
-                    if (role === 'mic' && totalDevices >= 2) {
-                        await createPeerConnection();
-                        const offer = await pc.createOffer();
-                        await pc.setLocalDescription(offer);
-                        ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: offer }));
                     }
                 }
 
