@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AirMic — Беспроводной Микрофон</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --accent: #007AFF;
+            --secondary: #f0f0f5;
+            --success: #34C759;
+            --error: #FF3B30;
+            --card-bg: #f9f9f9;
+            --pulse-color: rgba(0, 122, 255, 0.2);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000;
+                --text: #ffffff;
+                --accent: #0A84FF;
+                --secondary: #1c1c1e;
+                --card-bg: #1c1c1e;
+                --pulse-color: rgba(10, 132, 255, 0.3);
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            letter-spacing: -1px;
+        }
+
+        p {
+            opacity: 0.7;
+            font-size: 1.1rem;
+        }
+
+        .role-selection {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 20px;
+            padding: 1.5rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: var(--text);
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+            opacity: 0.9;
+        }
+
+        .btn-icon {
+            font-size: 2rem;
+        }
+
+        .room-screen, .control-screen {
+            display: none;
+            flex-direction: column;
+            gap: 1.5rem;
+            animation: slideUp 0.4s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        input {
+            background: var(--secondary);
+            border: 2px solid transparent;
+            border-radius: 15px;
+            padding: 1rem;
+            font-size: 1.5rem;
+            color: var(--text);
+            text-align: center;
+            width: 100%;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            background: var(--secondary);
+        }
+
+        .status-connected { color: var(--success); background: rgba(52, 199, 89, 0.1); }
+        .status-error { color: var(--error); background: rgba(255, 59, 48, 0.1); }
+        .status-connecting { color: var(--accent); background: rgba(0, 122, 255, 0.1); animation: blink 1.5s infinite; }
+
+        @keyframes blink {
+            50% { opacity: 0.5; }
+        }
+
+        .vol-meter {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 6px;
+            height: 60px;
+            margin: 2rem 0;
+        }
+
+        .vol-bar {
+            width: 12px;
+            background: var(--accent);
+            border-radius: 10px;
+            transition: height 0.1s ease;
+            height: 5px;
+            opacity: 0.3;
+        }
+
+        .pulse-circle {
+            width: 120px;
+            height: 120px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .pulse-circle::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: var(--pulse-color);
+            animation: pulse-ring 2s infinite;
+            z-index: -1;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        .timer {
+            font-variant-numeric: tabular-nums;
+            font-size: 1.2rem;
+            opacity: 0.8;
+        }
+
+        .footer-info {
+            position: fixed;
+            bottom: 20px;
+            font-size: 0.8rem;
+            opacity: 0.5;
+            max-width: 80%;
+        }
+
+        .hidden { display: none !important; }
+
+        .ios-tip {
+            font-size: 0.85rem;
+            background: rgba(255, 149, 0, 0.1);
+            color: #FF9500;
+            padding: 1rem;
+            border-radius: 15px;
+            margin-top: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="screen-start">
+            <h1>AirMic</h1>
+            <p>Ваш телефон — ваш микрофон</p>
+            <div class="role-selection" style="margin-top: 2rem;">
+                <button class="btn btn-primary" onclick="selectRole('mic')">
+                    <span class="btn-icon">🎙️</span>
+                    Я — МИКРОФОН
+                    <small style="font-weight: normal; opacity: 0.8;">(телефон)</small>
+                </button>
+                <button class="btn btn-secondary" onclick="selectRole('speaker')">
+                    <span class="btn-icon">🔊</span>
+                    Я — ДИНАМИК
+                    <small style="font-weight: normal; opacity: 0.8;">(компьютер)</small>
+                </button>
+            </div>
+        </div>
+
+        <div id="screen-room" class="room-screen">
+            <h2 id="room-title">Вход в комнату</h2>
+            <p>Введите код (5-6 знаков), чтобы соединить устройства</p>
+            <input type="text" id="room-id" placeholder="Например: zap42" maxlength="15" autocorrect="off" autocapitalize="none">
+            <button class="btn btn-primary" onclick="joinRoom()">Начать работу</button>
+            <button class="btn btn-secondary" onclick="resetApp()" style="padding: 1rem;">Назад</button>
+        </div>
+
+        <div id="screen-control" class="control-screen">
+            <div id="status-label" class="status-badge">Ожидание...</div>
+            
+            <div id="mic-ui" class="hidden">
+                <div class="pulse-circle">
+                    <span style="font-size: 3rem;">🎙️</span>
+                </div>
+                <div class="vol-meter" id="vol-visualizer">
+                    <div class="vol-bar"></div><div class="vol-bar"></div><div class="vol-bar"></div>
+                    <div class="vol-bar"></div><div class="vol-bar"></div><div class="vol-bar"></div>
+                    <div class="vol-bar"></div><div class="vol-bar"></div>
+                </div>
+            </div>
+
+            <div id="speaker-ui" class="hidden">
+                <div class="pulse-circle" id="speaker-pulse">
+                    <span style="font-size: 3rem;">🔊</span>
+                </div>
+                <div id="ios-play-btn" class="ios-tip">
+                    Если нет звука, нажмите на экран для активации аудио на iOS
+                </div>
+                <p style="margin-top: 1rem;">Звук воспроизводится через это устройство</p>
+            </div>
+
+            <div class="timer" id="connection-timer">00:00</div>
+            <div id="peer-count" style="font-size: 0.9rem; opacity: 0.6;">Участников: 0</div>
+            
+            <button class="btn btn-secondary" onclick="disconnect()" style="margin-top: 1rem;">
+                🛑 Остановить
+            </button>
+        </div>
+
+        <div class="footer-info">
+            AirMic v1.0 • WebRTC 2026<br>
+            Для работы на iOS браузер требует клика для активации звука.
+        </div>
+    </div>
+
+    <audio id="remote-audio" autoplay playsinline></audio>
+
+    <script>
+        /**
+         * КОНФИГУРАЦИЯ
+         */
+        // ВАЖНО: Если вы запускаете сервер локально, используйте IP вашего компьютера для подключения с телефона
+        // Например: 'ws://192.168.1.5:3000'
+        const SIGNALING_URL = 'ws://' + window.location.hostname + ':3000';
+        
+        const ICE_SERVERS = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        let role = null;
+        let roomId = '';
+        let ws = null;
+        let pc = null;
+        let localStream = null;
+        let timerInterval = null;
+        let startTime = null;
+        let audioContext = null;
+        let analyser = null;
+        let wakeLock = null;
+
+        function selectRole(selectedRole) {
+            role = selectedRole;
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('screen-room').style.display = 'flex';
+            document.getElementById('room-id').focus();
+            document.getElementById('room-title').innerText = role === 'mic' ? 'Трансляция звука' : 'Прием звука';
+        }
+
+        async function joinRoom() {
+            roomId = document.getElementById('room-id').value.trim().toLowerCase();
+            if (!roomId) return alert('Введите код комнаты!');
+
+            document.getElementById('screen-room').style.display = 'none';
+            document.getElementById('screen-control').style.display = 'flex';
+            
+            if (role === 'mic') {
+                document.getElementById('mic-ui').classList.remove('hidden');
+                await initMicrophone();
+            } else {
+                document.getElementById('speaker-ui').classList.remove('hidden');
+                if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                    document.getElementById('ios-play-btn').style.display = 'block';
+                }
+            }
+
+            initSignaling();
+            requestWakeLock();
+        }
+
+        function initSignaling() {
+            updateStatus('Подключение...', 'connecting');
+            
+            ws = new WebSocket(SIGNALING_URL);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'join', room: roomId }));
+                updateStatus('Ожидание...', 'connecting');
+            };
+
+            ws.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'peer_joined') {
+                    document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    if (role === 'mic' && data.count > 1) {
+                        await createPeerConnection();
+                        const offer = await pc.createOffer();
+                        await pc.setLocalDescription(offer);
+                        ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: offer }));
+                    }
+                }
+
+                if (data.type === 'signal') {
+                    if (!pc) await createPeerConnection();
+                    
+                    if (data.signal.type === 'offer') {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: answer }));
+                    } else if (data.signal.type === 'answer') {
+                        await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
+                    } else if (data.signal.candidate) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(data.signal));
+                        } catch (e) { console.error("Error adding candidate", e); }
+                    }
+                }
+
+                if (data.type === 'peer_left') {
+                    document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    updateStatus('Отключено', 'connecting');
+                    if (pc) pc.close();
+                    pc = null;
+                    stopTimer();
+                }
+            };
+
+            ws.onerror = () => updateStatus('Ошибка сервера', 'error');
+            ws.onclose = () => updateStatus('Сервер закрыт', 'error');
+        }
+
+        async function createPeerConnection() {
+            if (pc) return;
+            pc = new RTCPeerConnection(ICE_SERVERS);
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: event.candidate }));
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                switch(pc.connectionState) {
+                    case 'connected':
+                        updateStatus('В эфире ✓', 'connected');
+                        startTimer();
+                        break;
+                    case 'disconnected':
+                    case 'failed':
+                        updateStatus('Ошибка', 'error');
+                        stopTimer();
+                        break;
+                }
+            };
+
+            if (role === 'speaker') {
+                pc.ontrack = (event) => {
+                    const audio = document.getElementById('remote-audio');
+                    if (audio.srcObject !== event.streams[0]) {
+                        audio.srcObject = event.streams[0];
+                    }
+                };
+            }
+
+            if (role === 'mic' && localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+        }
+
+        async function initMicrophone() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
+                setupVisualizer(localStream);
+            } catch (err) {
+                alert('Нет доступа к микрофону!');
+                updateStatus('Ошибка', 'error');
+            }
+        }
+
+        function setupVisualizer(stream) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 64;
+            source.connect(analyser);
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            const bars = document.querySelectorAll('.vol-bar');
+
+            function draw() {
+                if (!analyser) return;
+                requestAnimationFrame(draw);
+                analyser.getByteFrequencyData(dataArray);
+                for (let i = 0; i < bars.length; i++) {
+                    const value = dataArray[i * 2] || 0;
+                    const height = Math.max(5, (value / 255) * 50);
+                    bars[i].style.height = `${height}px`;
+                    bars[i].style.opacity = 0.3 + (value / 255) * 0.7;
+                }
+            }
+            draw();
+        }
+
+        function updateStatus(text, type) {
+            const label = document.getElementById('status-label');
+            label.innerText = text;
+            label.className = 'status-badge status-' + type;
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const diff = Math.floor((Date.now() - startTime) / 1000);
+                const m = Math.floor(diff / 60).toString().padStart(2, '0');
+                const s = (diff % 60).toString().padStart(2, '0');
+                document.getElementById('connection-timer').innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        }
+
+        function disconnect() {
+            location.reload();
+        }
+        
+        function resetApp() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
