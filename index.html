@@ -369,7 +369,7 @@
             document.getElementById('screen-start').classList.add('hidden');
             
             if (role === 'speaker') {
-                // Генерируем ключ для динамика и сразу переходим к ожиданию
+                // Генерируем ключ для динамика
                 roomId = generateKey();
                 document.getElementById('screen-room').style.display = 'flex';
                 document.getElementById('room-title').innerText = 'Ваш ключ для подключения';
@@ -379,19 +379,8 @@
                 document.getElementById('room-id').style.fontSize = '2rem';
                 document.getElementById('room-id').style.letterSpacing = '8px';
                 document.getElementById('room-id').style.fontFamily = 'Courier New, monospace';
-                document.getElementById('join-btn').style.display = 'none';
-                
-                // Автоматически начинаем ожидание подключения
-                setTimeout(() => {
-                    document.getElementById('screen-room').style.display = 'none';
-                    document.getElementById('screen-control').style.display = 'flex';
-                    document.getElementById('speaker-ui').classList.remove('hidden');
-                    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                        document.getElementById('ios-play-btn').style.display = 'block';
-                    }
-                    initSignaling();
-                    requestWakeLock();
-                }, 3000);
+                document.getElementById('join-btn').innerText = 'Ожидать подключения';
+                document.getElementById('join-btn').style.display = 'block';
             } else {
                 // Микрофон вводит ключ вручную
                 document.getElementById('screen-room').style.display = 'flex';
@@ -435,10 +424,12 @@
                 updateStatus('Нажмите "Разрешить" для доступа к микрофону', 'connecting');
                 await initMicrophone();
             } else {
+                // Динамик
                 document.getElementById('speaker-ui').classList.remove('hidden');
                 if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                     document.getElementById('ios-play-btn').style.display = 'block';
                 }
+                updateStatus('Ожидание микрофона...', 'connecting');
                 initSignaling();
             }
 
@@ -459,15 +450,19 @@
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'peer_joined') {
-                    document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    const totalDevices = data.count;
+                    document.getElementById('peer-count').innerText = `Подключено устройств: ${totalDevices}`;
                     
-                    // Показываем уведомление о подключении
-                    if (data.count > 1) {
-                        const deviceType = role === 'mic' ? 'динамик' : 'микрофон';
-                        showNotification(`✓ ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} подключен`, 'success');
+                    // Показываем уведомление о подключении второго устройства
+                    if (totalDevices === 2) {
+                        const deviceType = role === 'mic' ? 'Динамик' : 'Микрофон';
+                        showNotification(`✓ ${deviceType} подключен к комнате ${roomId}`, 'success');
+                        updateStatus('Устройства соединены', 'success');
+                    } else if (totalDevices === 1) {
+                        updateStatus(`Ожидание ${role === 'mic' ? 'динамика' : 'микрофона'}...`, 'connecting');
                     }
                     
-                    if (role === 'mic' && data.count > 1) {
+                    if (role === 'mic' && totalDevices >= 2) {
                         await createPeerConnection();
                         const offer = await pc.createOffer();
                         await pc.setLocalDescription(offer);
@@ -493,13 +488,14 @@
                 }
 
                 if (data.type === 'peer_left') {
-                    document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    const remainingDevices = data.count;
+                    document.getElementById('peer-count').innerText = `Подключено устройств: ${remainingDevices}`;
                     
                     // Показываем уведомление об отключении
-                    const deviceType = role === 'mic' ? 'динамик' : 'микрофон';
-                    showNotification(`✗ ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} отключен`, 'error');
+                    const deviceType = role === 'mic' ? 'Динамик' : 'Микрофон';
+                    showNotification(`✗ ${deviceType} отключился`, 'error');
                     
-                    updateStatus('Отключено', 'connecting');
+                    updateStatus(`Ожидание ${role === 'mic' ? 'динамика' : 'микрофона'}...`, 'connecting');
                     if (pc) pc.close();
                     pc = null;
                     stopTimer();
