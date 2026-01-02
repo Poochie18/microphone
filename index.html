@@ -227,6 +227,47 @@
             margin-top: 1rem;
             display: none;
         }
+
+        .key-display {
+            background: var(--accent);
+            color: white;
+            font-size: 3rem;
+            font-weight: 600;
+            letter-spacing: 8px;
+            padding: 2rem;
+            border-radius: 20px;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            user-select: all;
+            -webkit-user-select: all;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--card-bg);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 1000;
+            animation: slideDown 0.3s ease-out;
+            max-width: 80%;
+        }
+
+        @keyframes slideDown {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        .notification.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .notification.error {
+            border-left: 4px solid var(--error);
+        }
     </style>
 </head>
 <body>
@@ -251,9 +292,9 @@
 
         <div id="screen-room" class="room-screen">
             <h2 id="room-title">Вход в комнату</h2>
-            <p>Введите код (5-6 знаков), чтобы соединить устройства</p>
+            <p id="room-subtitle">Введите код (5-6 знаков), чтобы соединить устройства</p>
             <input type="text" id="room-id" placeholder="Например: zap42" maxlength="15" autocorrect="off" autocapitalize="none">
-            <button class="btn btn-primary" onclick="joinRoom()">Начать работу</button>
+            <button class="btn btn-primary" id="join-btn" onclick="joinRoom()">Начать работу</button>
             <button class="btn btn-secondary" onclick="resetApp()" style="padding: 1rem;">Назад</button>
         </div>
 
@@ -327,13 +368,47 @@
             role = selectedRole;
             document.getElementById('screen-start').classList.add('hidden');
             document.getElementById('screen-room').style.display = 'flex';
-            document.getElementById('room-id').focus();
-            document.getElementById('room-title').innerText = role === 'mic' ? 'Трансляция звука' : 'Прием звука';
+            
+            if (role === 'speaker') {
+                // Генерируем ключ для динамика
+                roomId = generateKey();
+                document.getElementById('room-title').innerText = 'Ваш ключ для подключения';
+                document.getElementById('room-subtitle').innerText = 'Введите этот код на устройстве с микрофоном';
+                document.getElementById('room-id').value = roomId;
+                document.getElementById('room-id').readOnly = true;
+                document.getElementById('room-id').style.fontSize = '2rem';
+                document.getElementById('room-id').style.letterSpacing = '8px';
+                document.getElementById('room-id').style.fontFamily = 'Courier New, monospace';
+                document.getElementById('join-btn').innerText = 'Ожидать подключения';
+            } else {
+                // Микрофон вводит ключ вручную
+                document.getElementById('room-title').innerText = 'Подключение к динамику';
+                document.getElementById('room-subtitle').innerText = 'Введите 6-значный ключ с устройства-динамика';
+                document.getElementById('room-id').focus();
+                document.getElementById('room-id').readOnly = false;
+                document.getElementById('room-id').placeholder = 'AB12CD';
+                document.getElementById('room-id').maxLength = 6;
+                document.getElementById('join-btn').innerText = 'Подключиться';
+            }
+        }
+
+        function generateKey() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Убраны похожие символы I,O,0,1
+            let key = '';
+            for (let i = 0; i < 6; i++) {
+                key += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return key;
         }
 
         async function joinRoom() {
-            roomId = document.getElementById('room-id').value.trim().toLowerCase();
-            if (!roomId) return alert('Введите код комнаты!');
+            if (role === 'mic') {
+                roomId = document.getElementById('room-id').value.trim().toUpperCase();
+                if (!roomId || roomId.length !== 6) {
+                    return alert('Введите 6-значный код комнаты!');
+                }
+            }
+            // для динамика roomId уже сгенерирован
 
             document.getElementById('screen-room').style.display = 'none';
             document.getElementById('screen-control').style.display = 'flex';
@@ -367,6 +442,13 @@
 
                 if (data.type === 'peer_joined') {
                     document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    
+                    // Показываем уведомление о подключении
+                    if (data.count > 1) {
+                        const deviceType = role === 'mic' ? 'динамик' : 'микрофон';
+                        showNotification(`✓ ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} подключен`, 'success');
+                    }
+                    
                     if (role === 'mic' && data.count > 1) {
                         await createPeerConnection();
                         const offer = await pc.createOffer();
@@ -394,6 +476,11 @@
 
                 if (data.type === 'peer_left') {
                     document.getElementById('peer-count').innerText = `Участников: ${data.count}`;
+                    
+                    // Показываем уведомление об отключении
+                    const deviceType = role === 'mic' ? 'динамик' : 'микрофон';
+                    showNotification(`✗ ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} отключен`, 'error');
+                    
                     updateStatus('Отключено', 'connecting');
                     if (pc) pc.close();
                     pc = null;
@@ -520,6 +607,24 @@
         
         function resetApp() {
             location.reload();
+        }
+
+        function showNotification(message, type = 'success') {
+            // Удаляем предыдущее уведомление если есть
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerText = message;
+            document.body.appendChild(notification);
+
+            // Автоматически убираем через 3 секунды
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translate(-50%, -20px)';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
         }
     </script>
 </body>
