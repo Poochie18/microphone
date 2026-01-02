@@ -491,19 +491,32 @@
                 }
 
                 if (data.type === 'signal') {
-                    if (!pc) await createPeerConnection();
+                    console.log('Получен сигнал:', data.signal.type || 'candidate');
+                    
+                    if (!pc) {
+                        console.log('Создание peer connection для обработки сигнала...');
+                        await createPeerConnection();
+                    }
                     
                     if (data.signal.type === 'offer') {
+                        console.log('Обработка offer...');
                         await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
+                        console.log('Создание answer...');
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
+                        console.log('Отправка answer...');
                         ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: answer }));
                     } else if (data.signal.type === 'answer') {
+                        console.log('Обработка answer...');
                         await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
+                        console.log('Answer установлен');
                     } else if (data.signal.candidate) {
                         try {
                             await pc.addIceCandidate(new RTCIceCandidate(data.signal));
-                        } catch (e) { console.error("Error adding candidate", e); }
+                            console.log('✓ ICE candidate добавлен');
+                        } catch (e) { 
+                            console.error('"Ошибка добавления candidate:', e); 
+                        }
                     }
                 }
 
@@ -527,16 +540,33 @@
         }
 
         async function createPeerConnection() {
-            if (pc) return;
+            if (pc) {
+                console.log('Peer connection уже существует');
+                return;
+            }
+            
+            console.log('Создание peer connection...');
             pc = new RTCPeerConnection(ICE_SERVERS);
 
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
+                    console.log('ICE candidate:', event.candidate.candidate);
                     ws.send(JSON.stringify({ type: 'signal', room: roomId, signal: event.candidate }));
+                } else {
+                    console.log('ICE gathering завершен');
                 }
+            };
+            
+            pc.oniceconnectionstatechange = () => {
+                console.log('ICE connection state:', pc.iceConnectionState);
+            };
+            
+            pc.onicegatheringstatechange = () => {
+                console.log('ICE gathering state:', pc.iceGatheringState);
             };
 
             pc.onconnectionstatechange = () => {
+                console.log('Connection state:', pc.connectionState);
                 switch(pc.connectionState) {
                     case 'connected':
                         updateStatus('В эфире ✓', 'connected');
@@ -547,21 +577,33 @@
                         updateStatus('Ошибка', 'error');
                         stopTimer();
                         break;
+                    case 'connecting':
+                        updateStatus('Соединение...', 'connecting');
+                        break;
                 }
             };
 
             if (role === 'speaker') {
+                console.log('Динамик: ожидание аудио треков...');
                 pc.ontrack = (event) => {
+                    console.log('✓ Получен аудио трек:', event.track);
                     const audio = document.getElementById('remote-audio');
                     if (audio.srcObject !== event.streams[0]) {
                         audio.srcObject = event.streams[0];
+                        console.log('Аудио stream установлен');
                     }
                 };
             }
 
             if (role === 'mic' && localStream) {
-                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                console.log('Добавление аудио треков от микрофона...');
+                localStream.getTracks().forEach(track => {
+                    const sender = pc.addTrack(track, localStream);
+                    console.log('✓ Трек добавлен:', track.kind, track.label);
+                });
             }
+            
+            console.log('Peer connection создан');
         }
 
         async function initMicrophone() {
