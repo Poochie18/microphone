@@ -293,7 +293,7 @@
         <div id="screen-room" class="room-screen">
             <h2 id="room-title">Вход в комнату</h2>
             <p id="room-subtitle">Введите код (5-6 знаков), чтобы соединить устройства</p>
-            <input type="text" id="room-id" placeholder="Например: zap42" maxlength="15" autocorrect="off" autocapitalize="none">
+            <input type="text" id="room-id" placeholder="Например: zap42" maxlength="15" autocorrect="off" autocapitalize="characters" style="text-transform: uppercase;">
             <button class="btn btn-primary" id="join-btn" onclick="joinRoom()">Начать работу</button>
             <button class="btn btn-secondary" onclick="resetApp()" style="padding: 1rem;">Назад</button>
         </div>
@@ -331,7 +331,7 @@
         </div>
 
         <div class="footer-info">
-            AirMic v1.0 • WebRTC 2026<br>
+            AirMic v1.1 • WebRTC 2026<br>
             Для работы на iOS браузер требует клика для активации звука.
         </div>
     </div>
@@ -364,14 +364,14 @@
         let analyser = null;
         let wakeLock = null;
 
-        function selectRole(selectedRole) {
+        async function selectRole(selectedRole) {
             role = selectedRole;
             document.getElementById('screen-start').classList.add('hidden');
-            document.getElementById('screen-room').style.display = 'flex';
             
             if (role === 'speaker') {
-                // Генерируем ключ для динамика
+                // Генерируем ключ для динамика и сразу переходим к ожиданию
                 roomId = generateKey();
+                document.getElementById('screen-room').style.display = 'flex';
                 document.getElementById('room-title').innerText = 'Ваш ключ для подключения';
                 document.getElementById('room-subtitle').innerText = 'Введите этот код на устройстве с микрофоном';
                 document.getElementById('room-id').value = roomId;
@@ -379,15 +379,29 @@
                 document.getElementById('room-id').style.fontSize = '2rem';
                 document.getElementById('room-id').style.letterSpacing = '8px';
                 document.getElementById('room-id').style.fontFamily = 'Courier New, monospace';
-                document.getElementById('join-btn').innerText = 'Ожидать подключения';
+                document.getElementById('join-btn').style.display = 'none';
+                
+                // Автоматически начинаем ожидание подключения
+                setTimeout(() => {
+                    document.getElementById('screen-room').style.display = 'none';
+                    document.getElementById('screen-control').style.display = 'flex';
+                    document.getElementById('speaker-ui').classList.remove('hidden');
+                    if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                        document.getElementById('ios-play-btn').style.display = 'block';
+                    }
+                    initSignaling();
+                    requestWakeLock();
+                }, 3000);
             } else {
                 // Микрофон вводит ключ вручную
+                document.getElementById('screen-room').style.display = 'flex';
                 document.getElementById('room-title').innerText = 'Подключение к динамику';
                 document.getElementById('room-subtitle').innerText = 'Введите 6-значный ключ с устройства-динамика';
                 document.getElementById('room-id').focus();
                 document.getElementById('room-id').readOnly = false;
                 document.getElementById('room-id').placeholder = 'AB12CD';
                 document.getElementById('room-id').maxLength = 6;
+                document.getElementById('join-btn').style.display = 'block';
                 document.getElementById('join-btn').innerText = 'Подключиться';
             }
         }
@@ -536,12 +550,16 @@
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: true,
-                        autoGainControl: true
-                    } 
+                        autoGainControl: true,
+                        sampleRate: 48000
+                    },
+                    video: false
                 });
+                console.log('Микрофон подключен успешно');
                 setupVisualizer(localStream);
             } catch (err) {
-                alert('Нет доступа к микрофону!');
+                console.error('Ошибка доступа к микрофону:', err);
+                alert('Не удалось получить доступ к микрофону! Проверьте разрешения в настройках браузера.');
                 updateStatus('Ошибка', 'error');
             }
         }
