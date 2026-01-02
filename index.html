@@ -331,7 +331,7 @@
         </div>
 
         <div class="footer-info">
-            AirMic v1.1 • WebRTC 2026<br>
+            AirMic v1.2 • WebRTC 2026<br>
             Для работы на iOS браузер требует клика для активации звука.
         </div>
     </div>
@@ -429,15 +429,19 @@
             
             if (role === 'mic') {
                 document.getElementById('mic-ui').classList.remove('hidden');
+                // Сначала инициализируем сигнальный сервер
+                initSignaling();
+                // Затем запрашиваем микрофон - это ДОЛЖНО быть по действию пользователя
+                updateStatus('Нажмите "Разрешить" для доступа к микрофону', 'connecting');
                 await initMicrophone();
             } else {
                 document.getElementById('speaker-ui').classList.remove('hidden');
                 if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
                     document.getElementById('ios-play-btn').style.display = 'block';
                 }
+                initSignaling();
             }
 
-            initSignaling();
             requestWakeLock();
         }
 
@@ -546,6 +550,13 @@
 
         async function initMicrophone() {
             try {
+                console.log('Запрос доступа к микрофону...');
+                
+                // Проверяем, поддерживает ли браузер API
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Ваш браузер не поддерживает доступ к микрофону');
+                }
+                
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
@@ -555,12 +566,35 @@
                     },
                     video: false
                 });
-                console.log('Микрофон подключен успешно');
+                
+                console.log('✓ Микрофон подключен успешно');
+                console.log('Аудио треки:', localStream.getAudioTracks());
+                updateStatus('Микрофон активен', 'success');
                 setupVisualizer(localStream);
+                
+                // Если уже есть peer connection, добавляем треки
+                if (pc) {
+                    localStream.getTracks().forEach(track => {
+                        pc.addTrack(track, localStream);
+                        console.log('Трек добавлен в peer connection:', track);
+                    });
+                }
             } catch (err) {
-                console.error('Ошибка доступа к микрофону:', err);
-                alert('Не удалось получить доступ к микрофону! Проверьте разрешения в настройках браузера.');
-                updateStatus('Ошибка', 'error');
+                console.error('❌ Ошибка доступа к микрофону:', err);
+                let errorMsg = 'Не удалось получить доступ к микрофону!\n\n';
+                
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMsg += 'Вы отклонили доступ. Нажмите на значок замка в адресной строке и разрешите доступ к микрофону.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg += 'Микрофон не найден. Проверьте, подключен ли он.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg += 'Микрофон используется другим приложением.';
+                } else {
+                    errorMsg += 'Причина: ' + err.message;
+                }
+                
+                alert(errorMsg);
+                updateStatus('Ошибка микрофона', 'error');
             }
         }
 
